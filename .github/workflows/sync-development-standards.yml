@@ -47,22 +47,24 @@ jobs:
           page_id = os.environ['PAGE_ID']
           email = os.environ['CONFLUENCE_EMAIL']
           api_token = os.environ['CONFLUENCE_API_TOKEN']
-          
-          # Confluence Cloud REST API v2
-          url = f"https://{domain}/wiki/api/v2/pages/{page_id}?body-format=storage"
-          
-          # Make request
-          response = requests.get(
-              url,
-              auth=(email, api_token),
-              headers={"Accept": "application/json"}
-          )
-          response.raise_for_status()
-          
-          data = response.json()
-          page_title = data['title']
-          html_content = data['body']['storage']['value']
-          page_url = f"https://{domain}/wiki/spaces/PS/pages/{page_id}/Development+Standards"
+
+            headers = {"Accept": "application/json"}
+
+            # Try Confluence Cloud REST API v2 first; fallback to v1 content API for legacy IDs.
+            v2_url = f"https://{domain}/wiki/api/v2/pages/{page_id}?body-format=storage"
+            response = requests.get(v2_url, auth=(email, api_token), headers=headers)
+
+            if response.status_code == 404:
+              v1_url = f"https://{domain}/wiki/rest/api/content/{page_id}?expand=body.storage"
+              response = requests.get(v1_url, auth=(email, api_token), headers=headers)
+
+            response.raise_for_status()
+
+            data = response.json()
+            page_title = data['title']
+            html_content = data['body']['storage']['value']
+            webui_path = data.get('_links', {}).get('webui', '')
+            page_url = f"https://{domain}{webui_path}" if webui_path else f"https://{domain}/wiki/pages/{page_id}"
           
           # Convert HTML to Markdown
           markdown_content = md(html_content, heading_style="ATX")
