@@ -48,17 +48,40 @@ jobs:
           email = os.environ['CONFLUENCE_EMAIL']
           api_token = os.environ['CONFLUENCE_API_TOKEN']
 
+            if not email:
+              raise RuntimeError("CONFLUENCE_EMAIL is empty or not set")
+            if not api_token:
+              raise RuntimeError("CONFLUENCE_API_TOKEN is empty or not set")
+
           headers = {"Accept": "application/json"}
+
+            # Probe identity endpoint first to prove credentials are being used.
+            me_url = f"https://{domain}/wiki/rest/api/user/current"
+            me_response = requests.get(me_url, auth=(email, api_token), headers=headers)
+            print(f"Identity check: {me_url} -> HTTP {me_response.status_code}")
+            if me_response.status_code >= 400:
+              snippet = me_response.text[:500].replace("\n", " ")
+              raise RuntimeError(
+                f"Confluence identity check failed with HTTP {me_response.status_code}. "
+                f"Response snippet: {snippet}"
+              )
 
           # Try Confluence Cloud REST API v2 first; fallback to v1 content API for legacy IDs.
           v2_url = f"https://{domain}/wiki/api/v2/pages/{page_id}?body-format=storage"
           response = requests.get(v2_url, auth=(email, api_token), headers=headers)
+            print(f"Fetch attempt (v2): {v2_url} -> HTTP {response.status_code}")
 
           if response.status_code == 404:
               v1_url = f"https://{domain}/wiki/rest/api/content/{page_id}?expand=body.storage"
               response = requests.get(v1_url, auth=(email, api_token), headers=headers)
+              print(f"Fetch attempt (v1 fallback): {v1_url} -> HTTP {response.status_code}")
 
-          response.raise_for_status()
+            if response.status_code >= 400:
+              snippet = response.text[:800].replace("\n", " ")
+              raise RuntimeError(
+                f"Confluence page fetch failed with HTTP {response.status_code}. "
+                f"URL: {response.url}. Response snippet: {snippet}"
+              )
 
           data = response.json()
           page_title = data['title']
