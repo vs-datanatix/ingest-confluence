@@ -1,0 +1,132 @@
+name: Sync Development Standards from Confluence
+
+on:
+  schedule:
+    # Run daily at midnight UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write # Required to commit changes
+
+jobs:
+  sync-standards:
+    runs-on: ubuntu-slim
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4 markdownify
+
+      - name: Fetch and convert Confluence page
+        env:
+          CONFLUENCE_EMAIL: ${{ secrets.CONFLUENCE_EMAIL }}
+          CONFLUENCE_API_TOKEN: ${{ secrets.CONFLUENCE_API_TOKEN }}
+          CONFLUENCE_DOMAIN: datanatix.atlassian.net
+          PAGE_ID: '196997'
+        run: |
+          python - <<'EOF'
+          import os
+          import requests
+          from markdownify import markdownify as md
+          from datetime import datetime
+          
+          # Configuration
+          domain = os.environ['CONFLUENCE_DOMAIN']
+          page_id = os.environ['PAGE_ID']
+          email = os.environ['CONFLUENCE_EMAIL']
+          api_token = os.environ['CONFLUENCE_API_TOKEN']
+          
+          # Confluence Cloud REST API v2
+          url = f"https://{domain}/wiki/api/v2/pages/{page_id}?body-format=storage"
+          
+          # Make request
+          response = requests.get(
+              url,
+              auth=(email, api_token),
+              headers={"Accept": "application/json"}
+          )
+          response.raise_for_status()
+          
+          data = response.json()
+          page_title = data['title']
+          html_content = data['body']['storage']['value']
+          page_url = f"https://{domain}/wiki/spaces/PS/pages/{page_id}/Development+Standards"
+          
+          # Convert HTML to Markdown
+          markdown_content = md(html_content, heading_style="ATX")
+          
+          # Create final content with metadata
+          final_content = "\n".join([
+              f"# {page_title}",
+              "",
+              "> **AUTO-GENERATED FILE - DO NOT EDIT MANUALLY**",
+              ">",
+              "> This file is automatically synchronized from Confluence.",
+              f"> - **Source**: [{page_title}]({page_url})",
+              f"> - **Last Updated**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}",
+              "> - **Sync Schedule**: Daily at 00:00 UTC",
+              ">",
+              f"> To update these standards, please edit the [Confluence page]({page_url}).",
+              "",
+              "---",
+              "",
+              markdown_content,
+              "",
+          ])
+          
+          # Write to file
+          output_file = '.github/DEVELOPMENT_STANDARDS.md'
+          with open(output_file, 'w', encoding='utf-8') as f:
+              f.write(final_content)
+          
+          print(f"Successfully fetched and converted: {page_title}")
+          print(f"Written to: {output_file}")
+          EOF
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          git add .github/DEVELOPMENT_STANDARDS.md
+          if git diff --cached --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes detected"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Changes detected"
+          fi
+
+      - name: Commit and push changes
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: sync development standards from Confluence [skip ci]
+          
+          Updated development standards from Confluence page.
+          Source: https://datanatix.atlassian.net/wiki/spaces/PS/pages/196997/Development+Standards
+          Timestamp: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          git push
+
+      - name: Summary
+        run: |
+          if [[ "${{ steps.check_changes.outputs.changed }}" == "true" ]]; then
+            echo "✅ Development standards updated successfully!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The standards have been synchronized from Confluence and committed to the repository." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ No changes detected" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The development standards are already up to date." >> $GITHUB_STEP_SUMMARY
+          fi

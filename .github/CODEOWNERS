@@ -1,0 +1,12 @@
+# CODEOWNERS - Define who can approve changes to specific files
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Development Standards - Only you and the workflow can modify
+# Replace vkarthikeyan_microsoft with your actual GitHub username
+/.github/DEVELOPMENT_STANDARDS.md @vkarthikeyan_microsoft
+
+# CODEOWNERS file itself - protect this too
+/.github/CODEOWNERS @vkarthikeyan_microsoft
+
+# Workflow that syncs standards - protect this as well
+/.github/workflows/sync-development-standards.yml @vkarthikeyan_microsoft 
