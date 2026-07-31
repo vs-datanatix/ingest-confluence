@@ -36,7 +36,7 @@ jobs:
       - name: Fetch base branch
         run: |
           BRANCH_NAME="${BASE_REF#origin/}"
-          git fetch origin "$BRANCH_NAME" --depth=1
+          git fetch origin "$BRANCH_NAME"
 
       - name: Run validator from repository source of truth
         id: validate
@@ -45,10 +45,48 @@ jobs:
           python scripts/validate_development_standards.py \
             --base-ref "$BASE_REF" \
             --report-path development-standards-validation.md \
-            --json-path development-standards-validation.json
+            --json-path development-standards-validation.json \
+            > development-standards-validator.log 2>&1
           status=$?
+
+          if [ ! -f development-standards-validation.md ]; then
+            {
+              echo "# Development Standards Validation Report"
+              echo
+              echo "Validator failed before producing a structured rule report."
+              echo
+              echo "## Failure Details"
+              echo
+              echo '```text'
+              cat development-standards-validator.log
+              echo '```'
+              echo
+              echo "## Recommended Action"
+              echo
+              echo "- Fix the validator runtime error shown above and rerun the check."
+            } > development-standards-validation.md
+          fi
+
+          if [ ! -f development-standards-validation.json ]; then
+            echo '{"violation_count": 0, "runtime_error": true}' > development-standards-validation.json
+          fi
+
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit 0
+
+      - name: Show validation report in logs
+        if: always()
+        run: |
+          if [ -f development-standards-validator.log ]; then
+            echo "--- development-standards-validator.log ---"
+            cat development-standards-validator.log
+          fi
+          if [ -f development-standards-validation.md ]; then
+            echo "--- development-standards-validation.md ---"
+            cat development-standards-validation.md
+          else
+            echo "Validation report not found"
+          fi
 
       - name: Publish validation comment
         if: always() && github.event_name == 'pull_request'
