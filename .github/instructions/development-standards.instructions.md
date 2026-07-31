@@ -2,7 +2,7 @@
 applyTo: "**"
 ---
 <!-- AUTO-GENERATED FROM CONFLUENCE — DO NOT EDIT MANUALLY -->
-<!-- Source: https://datanatix.atlassian.net/spaces/PS/pages/196997/Development+Standards | Last synced: 2026-07-31 10:54:30 UTC -->
+<!-- Source: https://datanatix.atlassian.net/spaces/PS/pages/196997/Development+Standards | Last synced: 2026-07-31 12:03:15 UTC -->
 
 # Development Standards
 
