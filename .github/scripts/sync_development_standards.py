@@ -36,12 +36,12 @@ def extract_rules(markdown_content: str) -> list[dict[str, str | None]]:
             continue
 
         canonical = re.sub(r"\s+", " ", text)
-        normalized = re.sub(r"[`*_]", "", canonical).lower()
+        normalized = re.sub(r"[`*\\]", "", canonical).lower()
         rule_hash = hashlib.sha1(f"{section}|{normalized}".encode("utf-8")).hexdigest()[:10]
         rule_id = f"DS-{rule_hash}"
 
         checker = None
-        if "use snake_case for all identifiers" in normalized:
+        if "use snake_case for all identifiers" in normalized or "use snakecase for all identifiers" in normalized:
             checker = "sql_snake_case_identifiers"
         elif "format: [layer]_[domain]_[object]" in normalized:
             checker = "sql_table_layer_domain_object"
@@ -66,7 +66,7 @@ def extract_rules(markdown_content: str) -> list[dict[str, str | None]]:
 
 
 def default_mitigation(rule_text: str) -> str:
-    lowered = rule_text.lower()
+    lowered = rule_text.lower().replace("\\", "")
     if "snake_case" in lowered:
         return "Rename identifiers to snake_case and update all references in SQL, notebooks, and models."
     if "[layer]_[domain]_[object]" in lowered:
@@ -142,7 +142,7 @@ def check_sql_snake_case_identifiers(file_path: Path, text: str) -> list[tuple[s
         if token.lower() in {
             "select", "from", "where", "join", "group", "order", "by", "as", "and", "or", "on",
             "insert", "update", "delete", "create", "table", "view", "into", "values", "case",
-            "when", "then", "else", "end"
+            "when", "then", "else", "end", "not", "null"
         }:
             continue
         if token != token.lower():
@@ -192,6 +192,22 @@ def check_sql_fact_dim_prefix(file_path: Path, text: str) -> list[tuple[str, str
     for match in pattern.finditer(text):
         raw = match.group(1)
         table_name = raw.split(".")[-1].strip('"[]').lower()
+        if table_name.startswith("f_"):
+            findings.append(
+                (
+                    f"Fact-like table '{raw}' uses abbreviated f_ prefix.",
+                    "Use fact_ prefix explicitly for fact tables.",
+                )
+            )
+            continue
+        if table_name.startswith("d_"):
+            findings.append(
+                (
+                    f"Dimension-like table '{raw}' uses abbreviated d_ prefix.",
+                    "Use dim_ prefix explicitly for dimension tables.",
+                )
+            )
+            continue
         if "fact" in table_name and not table_name.startswith("fact_"):
             findings.append(
                 (

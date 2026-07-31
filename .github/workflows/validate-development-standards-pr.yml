@@ -50,6 +50,16 @@ jobs:
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit 0
 
+      - name: Show validation report in logs
+        if: always()
+        run: |
+          if [ -f development-standards-validation.md ]; then
+            echo "--- development-standards-validation.md ---"
+            cat development-standards-validation.md
+          else
+            echo "Validation report not found"
+          fi
+
       - name: Publish validation comment
         if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
