@@ -13,6 +13,45 @@
     "sourceQueryCulture": "en-US",
     "tables": [
       {
+        "name": "LookupTable",
+        "sourceLineageTag": "[dbo].[LookupTable]",
+        "columns": [
+          {
+            "name": "col1",
+            "dataType": "int64",
+            "sourceColumn": "col1",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "col1",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "LookupTable",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "dbo"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
         "name": "d_customer",
         "sourceLineageTag": "[dbo].[d_customer]",
         "columns": [
