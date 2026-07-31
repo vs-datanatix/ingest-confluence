@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from pathlib import Path
 
 import requests
 from markdownify import markdownify as md
@@ -61,32 +62,28 @@ def main() -> None:
 
     markdown_content = md(html_content, heading_style="ATX")
 
+    last_updated = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     final_content = "\n".join(
         [
-            f"# {page_title}",
-            "",
-            "> **AUTO-GENERATED FILE - DO NOT EDIT MANUALLY**",
-            ">",
-            "> This file is automatically synchronized from Confluence.",
-            f"> - **Source**: [{page_title}]({page_url})",
-            f"> - **Last Updated**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}",
-            "> - **Sync Schedule**: Daily at 00:00 UTC",
-            ">",
-            f"> To update these standards, please edit the [Confluence page]({page_url}).",
-            "",
             "---",
+            'applyTo: "**"',
+            "---",
+            f"<!-- AUTO-GENERATED FROM CONFLUENCE — DO NOT EDIT MANUALLY -->",
+            f"<!-- Source: {page_url} | Last synced: {last_updated} -->",
+            "",
+            f"# {page_title}",
             "",
             markdown_content,
             "",
         ]
     )
 
-    output_file = ".github/DEVELOPMENT_STANDARDS.md"
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write(final_content)
+    output_file = Path(".github/instructions/development-standards.instructions.md")
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_text(final_content, encoding="utf-8")
 
     print(f"Successfully fetched and converted: {page_title}")
-    print(f"Written to: {output_file}")
+    print(f"Written to: {output_file!s}")
 
 
 if __name__ == "__main__":
