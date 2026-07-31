@@ -1,0 +1,97 @@
+name: Validate Development Standards PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate-standards:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    name: Development Standards Validation
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fetch base branch
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+
+      - name: Run validator from repository source of truth
+        id: validate
+        run: |
+          set +e
+          python scripts/validate_development_standards.py \
+            --base-ref "origin/${{ github.base_ref }}" \
+            --report-path development-standards-validation.md \
+            --json-path development-standards-validation.json
+          status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Publish validation comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const marker = "<!-- development-standards-validation -->";
+            const reportPath = "development-standards-validation.md";
+            const report = fs.existsSync(reportPath)
+              ? fs.readFileSync(reportPath, "utf8")
+              : "Validation report was not generated.";
+
+            const exitCode = "${{ steps.validate.outputs.exit_code }}";
+            const header = exitCode === "0"
+              ? "## Development standards validation passed"
+              : "## Development standards validation failed";
+
+            const body = `${marker}\n${header}\n\n${report}`;
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+
+            const comments = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+
+            const existing = comments.data.find((comment) =>
+              comment.user?.type === "Bot" && comment.body?.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
+
+      - name: Block merge on violations
+        if: steps.validate.outputs.exit_code != '0'
+        run: |
+          echo "Development standards violations found."
+          exit 1
